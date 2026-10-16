@@ -13,7 +13,9 @@ export async function onRequestPost({request,env}) {
   if (origin && origin !== new URL(request.url).origin) return json({ok:false,message:'非法请求来源'},403);
   let body;
   try {body=await request.json();} catch {return json({ok:false,message:'请求内容无效'},400);}
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ok:false,message:'请求内容无效'},400);
   if (body.website) return json({ok:true,message:'已接收'}); // honeypot
+  if (body.privacyConsent !== true || body.privacyVersion !== '2026-10-16') return json({ok:false,message:'请阅读当前隐私说明，并确认同意后再提交。'},400);
   const name=clean(body.name,40), phone=clean(body.phone,20), service=clean(body.service,50), needs=clean(body.needs||'',600);
   if (!name || name.length>40 || !/^[0-9+()\-\s]{7,20}$/.test(phone) || !TYPES.has(service)) return json({ok:false,message:'请检查称呼、电话和咨询类型。'},400);
   // Avoid logging PII or webhook secret.
@@ -26,7 +28,7 @@ export async function onRequestPost({request,env}) {
     }catch{} // Optional Cloudflare rate-limit binding; not required for deployment
   }
   const dt=new Date().toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false});
-  const text=`【官网新客户咨询】\n时间：${dt}（北京时间）\n客户称呼：${name}\n联系电话：${phone}\n意向服务：${service}\n需求：${needs || '待沟通'}\n来源：脑洞发电企业官网`;
+  const text=`【官网新客户咨询】\n时间：${dt}（北京时间）\n客户称呼：${name}\n联系电话：${phone}\n意向服务：${service}\n需求：${needs || '待沟通'}\n来源：脑洞发电企业官网\n告知版本：2026-10-16；用户确认本次咨询信息处理`;
   try {
     const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),8000);
     let resp;
