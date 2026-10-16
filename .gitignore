@@ -1,0 +1,19 @@
+# Local runtime/build output
+.wrangler/
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+
+# Local credentials and environment configuration
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.key
