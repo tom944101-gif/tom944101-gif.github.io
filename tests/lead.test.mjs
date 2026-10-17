@@ -1,0 +1,25 @@
+import {readFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const code=readFileSync(new URL('../functions/api/lead.js',import.meta.url),'utf8');
+const {onRequestPost}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
+let calls=0;globalThis.fetch=async()=>{calls++;return Response.json({errcode:0})};
+const env={WE_COM_WEBHOOK_URL:'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=fake-test-only'};
+const valid={name:'虚构测试',phone:'00000000000',service:'其他合作',needs:'测试',privacyConsent:true,privacyVersion:'2026-10-16'};
+let count=0;
+async function check(label,body,status,headers={},target='https://naodong-fadian.pages.dev/api/lead',binding=env){const before=calls;const r=await onRequestPost({request:new Request(target,{method:'POST',headers:{origin:'https://naodong-fadian.pages.dev','content-type':'application/json',...headers},body:typeof body==='string'?body:JSON.stringify(body)}),env:binding});assert.equal(r.status,status,label);if(status!==200)assert.equal(calls,before,label+' must not notify');count++;}
+await check('valid',valid,200);
+await check('missing origin',valid,403,{origin:''});
+await check('foreign origin',valid,403,{origin:'https://evil.invalid'});
+await check('preview cannot notify',valid,403,{},'https://preview.naodong-fadian.pages.dev/api/lead');
+await check('bad mime',valid,415,{'content-type':'application/json-evil'});
+await check('bad json','{',400);
+await check('oversized streamed body',' '.repeat(4097),413);
+await check('oversized name',{...valid,name:'x'.repeat(41)},400);
+await check('wrong field type',{...valid,needs:{}},400);
+await check('missing consent',{...valid,privacyConsent:false},400);
+await check('stale consent',{...valid,privacyVersion:'old'},400);
+await check('limiter rejects',valid,429,{},undefined,{...env,LEAD_RATE_LIMIT:{limit:async()=>({success:false})}});
+await check('limiter fails closed',valid,503,{},undefined,{...env,LEAD_RATE_LIMIT:{limit:async()=>{throw Error('mock')}}});
+globalThis.fetch=async()=>{calls++;throw Error('mock network')};
+const r=await onRequestPost({request:new Request('https://naodong-fadian.pages.dev/api/lead',{method:'POST',headers:{origin:'https://naodong-fadian.pages.dev','content-type':'application/json'},body:JSON.stringify(valid)}),env});assert.equal(r.status,502);count++;
+console.log(`${count} checks passed; all outbound requests mocked; no real notification.`);
